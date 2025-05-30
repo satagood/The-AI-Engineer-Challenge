@@ -1,0 +1,17 @@
+# 🚀 AI Engineer Challenge - Backend Dependencies
+# Install with: pip install -r requirements.txt
+
+# Core FastAPI stack - the dream team! 💪
+fastapi>=0.115.12
+uvicorn>=0.34.2
+pydantic>=2.11.4
+
+# OpenAI magic ✨
+openai
+
+# For the cool notebooks 📓
+jupyter>=1.1.1
+
+# Optional but recommended for development 🛠️
+# python-multipart  # For file uploads if you add them later
+# python-dotenv     # For environment variables 

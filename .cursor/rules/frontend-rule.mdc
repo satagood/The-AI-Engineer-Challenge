@@ -1,7 +1,6 @@
 ---
 description: When designing a frontend or frontend components.
 globs: 
-alwaysApply: false
 ---
 ### Rules for Frontend
 
@@ -11,3 +10,21 @@ alwaysApply: false
 - You should use Next.js as it works best with Vercel. 
 - This frontend will ultimately be deployed on Vercel, but it should be possible to test locally. 
 - Always provide users with a way to run the created UI once you have created it.
+
+
+theme: "Midnight Sunset"
+
+colors:
+  background: "#0f0f0f"
+  primary: "#ff6f61"
+  accent: "#00d1b2"
+  text: "#ffffff"
+
+vibe:
+  mood: "chill"
+  lighting: "neon"
+  music: "lofi hip-hop"
+
+fonts:
+  code: "Fira Code"
+  ui: "Inter"
