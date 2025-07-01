@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Send, Bot, User, Key, Settings, Sparkles, MessageCircle } from 'lucide-react'
+import MarkdownRenderer from './components/MarkdownRenderer'
 
 interface Message {
   id: string
@@ -191,15 +192,17 @@ export default function ChatInterface() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="text-center py-12"
+                className="py-8"
               >
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-full glass-effect mb-4 animate-float">
-                  <MessageCircle className="w-8 h-8 text-primary" />
+                <div className="text-center mb-8">
+                  <div className="inline-flex items-center justify-center w-16 h-16 rounded-full glass-effect mb-4 animate-float">
+                    <MessageCircle className="w-8 h-8 text-primary" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-300 mb-2">Welcome to AI Engineer Challenge</h3>
+                  <p className="text-gray-400 max-w-md mx-auto">
+                    Start a conversation with our premium AI assistant. Configure your settings above and begin chatting!
+                  </p>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-300 mb-2">Welcome to AI Engineer Challenge</h3>
-                <p className="text-gray-400 max-w-md mx-auto">
-                  Start a conversation with our premium AI assistant. Configure your settings above and begin chatting!
-                </p>
               </motion.div>
             ) : (
               messages.map((message, index) => (
@@ -231,9 +234,10 @@ export default function ChatInterface() {
                         ? 'bg-gradient-to-br from-primary/20 to-orange-500/20 border-primary/30' 
                         : 'bg-gradient-to-br from-accent/20 to-blue-500/20 border-accent/30'
                     }`}>
-                      <p className="text-white whitespace-pre-wrap font-code text-sm leading-relaxed">
-                        {message.content}
-                      </p>
+                      <MarkdownRenderer 
+                        content={message.content}
+                        className="text-sm"
+                      />
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
                       {message.timestamp.toLocaleTimeString()}

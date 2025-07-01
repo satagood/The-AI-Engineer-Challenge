@@ -76,4 +76,91 @@ a {
   );
   background-size: 200% 100%;
   animation: shimmer 2s infinite;
+}
+
+/* Markdown content styles */
+.markdown-content {
+  line-height: 1.6;
+  word-wrap: break-word;
+}
+
+.markdown-content .katex {
+  font-size: 1.1em;
+}
+
+.markdown-content .katex-display {
+  margin: 1.5rem 0;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.markdown-content .katex .base {
+  color: #e5e7eb;
+}
+
+.markdown-content .katex .mord {
+  color: #f3f4f6;
+}
+
+.markdown-content .katex .mrel {
+  color: #00d1b2;
+}
+
+.markdown-content .katex .mop {
+  color: #ff6f61;
+}
+
+.markdown-content .katex .mbin {
+  color: #fbbf24;
+}
+
+.markdown-content .katex .mpunct {
+  color: #9ca3af;
+}
+
+.markdown-content .katex .mspace {
+  color: #6b7280;
+}
+
+/* Enhanced table styles */
+.markdown-content table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+/* Enhanced blockquote styles */
+.markdown-content blockquote::before {
+  content: '"';
+  font-size: 2rem;
+  color: #ff6f61;
+  line-height: 0;
+  position: relative;
+  top: 0.5rem;
+  margin-right: 0.5rem;
+}
+
+/* Enhanced code block styles */
+.markdown-content pre {
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+/* Task list styles */
+.markdown-content ul input[type="checkbox"] {
+  margin-right: 0.5rem;
+  margin-top: 0.125rem;
+  transform: scale(1.1);
+}
+
+/* Math inline styles */
+.markdown-content .katex {
+  color: #f3f4f6;
+}
+
+.markdown-content .katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
 } 
