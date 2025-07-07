@@ -22,6 +22,32 @@ function isPDFChatResponse(content: string) {
   }
 }
 
+// Elegant context toggle component
+function ContextToggle({ context }: { context: string[] }) {
+  const [show, setShow] = useState(false);
+  return (
+    <div className="my-4">
+      <button
+        className={`px-3 py-1 rounded transition-colors duration-200 font-medium shadow-sm border border-primary text-primary bg-background hover:bg-primary hover:text-background focus:outline-none focus:ring-2 focus:ring-primary/50`}
+        onClick={() => setShow((prev) => !prev)}
+        aria-expanded={show}
+        aria-controls="context-section"
+      >
+        {show ? 'Hide context' : 'Show context used for this answer'}
+      </button>
+      <div
+        id="context-section"
+        className={`overflow-hidden transition-all duration-300 ease-in-out ${show ? 'max-h-96 opacity-100 mt-3' : 'max-h-0 opacity-0 mt-0'} bg-gray-900 rounded text-sm text-gray-200 border border-gray-700`}
+        style={{ padding: show ? '1rem' : '0' }}
+      >
+        {show && (
+          <pre className="whitespace-pre-wrap font-mono text-xs">{context.join('\n\n')}</pre>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [userMessage, setUserMessage] = useState('')
@@ -314,14 +340,7 @@ export default function ChatInterface() {
                           return (
                             <div>
                               <MarkdownRenderer content={parsed.response} className="text-sm mb-4" />
-                              <div className="mt-4 p-3 rounded bg-gray-900 border border-accent/40 text-xs text-gray-300">
-                                <div className="font-semibold text-accent mb-1">Context used for this answer:</div>
-                                <ul className="list-disc pl-5 space-y-1">
-                                  {parsed.context.map((ctx: string, i: number) => (
-                                    <li key={i} className="break-words whitespace-pre-line">{ctx}</li>
-                                  ))}
-                                </ul>
-                              </div>
+                              <ContextToggle context={parsed.context} />
                             </div>
                           )
                         })()
