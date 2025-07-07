@@ -1,5 +1,5 @@
 # Import required FastAPI components for building the API
-from fastapi import FastAPI, HTTPException, UploadFile, File
+from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 # Import Pydantic for data validation and settings management
@@ -13,6 +13,7 @@ import uuid
 from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
 from aimakerspace.vectordatabase import VectorDatabase
 from aimakerspace.openai_utils.chatmodel import ChatOpenAI
+import time
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="OpenAI Chat API")
@@ -74,8 +75,16 @@ async def health_check():
 UPLOAD_DIR = "./tmp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
+def cleanup_file(path: str, delay: int = 600):
+    time.sleep(delay)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except Exception as e:
+        print(f"Failed to cleanup file {path}: {e}")
+
 @app.post("/api/upload_pdf")
-async def upload_pdf(file: UploadFile = File(...)):
+async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
     try:
@@ -83,6 +92,9 @@ async def upload_pdf(file: UploadFile = File(...)):
         file_path = os.path.join(UPLOAD_DIR, f"{unique_id}_{file.filename}")
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
+        # Schedule cleanup after 10 minutes
+        if background_tasks:
+            background_tasks.add_task(cleanup_file, file_path)
         return {"file_id": unique_id, "file_path": file_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {str(e)}")
