@@ -10,6 +10,8 @@ import os
 from typing import Optional
 import shutil
 import uuid
+from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
+from aimakerspace.vectordatabase import VectorDatabase
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="OpenAI Chat API")
@@ -83,6 +85,30 @@ async def upload_pdf(file: UploadFile = File(...)):
         return {"file_id": unique_id, "file_path": file_path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {str(e)}")
+
+vector_db_store = {}
+
+@app.post("/api/index_pdf")
+async def index_pdf(file_id: str):
+    # Find the file path in the upload dir
+    file_path = None
+    for fname in os.listdir(UPLOAD_DIR):
+        if fname.startswith(file_id):
+            file_path = os.path.join(UPLOAD_DIR, fname)
+            break
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="File not found for indexing.")
+    try:
+        loader = PDFLoader(file_path)
+        documents = loader.load_documents()  # List of text from PDF
+        splitter = CharacterTextSplitter()
+        chunks = splitter.split_texts(documents)
+        # Build vector DB
+        vector_db = await VectorDatabase().abuild_from_list(chunks)
+        vector_db_store[file_id] = vector_db
+        return {"status": "indexed", "num_chunks": len(chunks)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to index PDF: {str(e)}")
 
 # Entry point for running the application directly
 if __name__ == "__main__":
