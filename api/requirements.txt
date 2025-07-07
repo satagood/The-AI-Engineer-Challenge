@@ -16,8 +16,6 @@ numpy
 # Token counting for batching
  tiktoken
 
-# For the cool notebooks 📓
-jupyter>=1.1.1
 
 # Optional but recommended for development 🛠️
 python-multipart  # For file uploads if you add them later
