@@ -94,11 +94,9 @@ class PDFLoader:
             with open(self.path, 'rb') as file:
                 # Create PDF reader object
                 pdf_reader = PyPDF2.PdfReader(file)
-                # Extract text from only the first 10 pages to avoid OOM
+                # Extract text from all pages
                 text = ""
-                max_pages = min(10, len(pdf_reader.pages))
-                for i in range(max_pages):
-                    page = pdf_reader.pages[i]
+                for i, page in enumerate(pdf_reader.pages):
                     try:
                         page_text = page.extract_text()
                         if page_text:

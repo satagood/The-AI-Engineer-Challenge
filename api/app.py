@@ -103,10 +103,12 @@ vector_db_store = {}
 
 class IndexRequest(BaseModel):
     file_id: str
+    api_key: str
 
 @app.post("/api/index_pdf")
 async def index_pdf(request: IndexRequest):
     file_id = request.file_id
+    api_key = request.api_key
     # Find the file path in the upload dir
     file_path = None
     for fname in os.listdir(UPLOAD_DIR):
@@ -120,24 +122,44 @@ async def index_pdf(request: IndexRequest):
         documents = loader.load_documents()  # List of text from PDF
         splitter = CharacterTextSplitter()
         chunks = splitter.split_texts(documents)
-        # Build vector DB
-        vector_db = await VectorDatabase().abuild_from_list(chunks)
+        print(f"[DEBUG] Extracted {len(chunks)} chunks from PDF {file_path}")
+        try:
+            import openai
+            openai.api_key = api_key
+            from aimakerspace.openai_utils.embedding import EmbeddingModel
+            embedding_model = EmbeddingModel(embeddings_model_name="text-embedding-3-small", api_key=api_key)
+            vector_db = await VectorDatabase(embedding_model=embedding_model).abuild_from_list(chunks)
+        except Exception as embed_err:
+            print(f"[ERROR] Failed to embed chunks: {embed_err}")
+            raise
         vector_db_store[file_id] = vector_db
+        print(f"[DEBUG] Successfully indexed PDF {file_path}")
         return {"status": "indexed", "num_chunks": len(chunks)}
     except Exception as e:
+        print(f"[ERROR] Exception in /api/index_pdf: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to index PDF: {str(e)}")
 
+class ChatPDFRequest(BaseModel):
+    file_id: str
+    user_query: str
+    api_key: str
+
 @app.post("/api/chat_pdf")
-async def chat_pdf(file_id: str, user_query: str, k: int = 3):
+async def chat_pdf(request: ChatPDFRequest, k: int = 3):
+    file_id = request.file_id
+    user_query = request.user_query
+    api_key = request.api_key
     if file_id not in vector_db_store:
         raise HTTPException(status_code=404, detail="Indexed PDF not found. Please index the PDF first.")
     try:
+        import openai
+        openai.api_key = api_key
         vector_db = vector_db_store[file_id]
         # Get top-k relevant chunks
         relevant_chunks = vector_db.search_by_text(user_query, k=k, return_as_text=True)
         context = "\n".join(relevant_chunks)
         # Use aimakerspace's ChatOpenAI to generate a response
-        chat = ChatOpenAI()
+        chat = ChatOpenAI(api_key=api_key)
         messages = [
             {"role": "system", "content": "You are a helpful assistant. Use the following PDF context to answer the user's question."},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
@@ -145,6 +167,7 @@ async def chat_pdf(file_id: str, user_query: str, k: int = 3):
         response = chat.run(messages, text_only=True)
         return {"response": response, "context": relevant_chunks}
     except Exception as e:
+        print(f"[ERROR] Exception in /api/chat_pdf: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to chat with PDF: {str(e)}")
 
 # Entry point for running the application directly

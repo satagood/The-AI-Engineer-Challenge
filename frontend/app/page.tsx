@@ -12,6 +12,16 @@ interface Message {
   timestamp: Date
 }
 
+// Helper to check if a message is a PDF chat response
+function isPDFChatResponse(content: string) {
+  try {
+    const parsed = JSON.parse(content)
+    return parsed && typeof parsed.response === 'string' && Array.isArray(parsed.context)
+  } catch {
+    return false
+  }
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [userMessage, setUserMessage] = useState('')
@@ -54,7 +64,7 @@ export default function ChatInterface() {
       const indexRes = await fetch('/api/index_pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: uploadData.file_id }),
+        body: JSON.stringify({ file_id: uploadData.file_id, api_key: apiKey }),
       })
       if (!indexRes.ok) throw new Error('Failed to index PDF')
       setPdfStatus('indexed')
@@ -86,7 +96,7 @@ export default function ChatInterface() {
         response = await fetch('/api/chat_pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_id: fileId, user_query: userMessage }),
+          body: JSON.stringify({ file_id: fileId, user_query: userMessage, api_key: apiKey }),
         })
       } else {
         response = await fetch('/api/chat', {
@@ -297,10 +307,30 @@ export default function ChatInterface() {
                         ? 'bg-gradient-to-br from-primary/20 to-orange-500/20 border-primary/30' 
                         : 'bg-gradient-to-br from-accent/20 to-blue-500/20 border-accent/30'
                     }`}>
-                      <MarkdownRenderer 
-                        content={message.content}
-                        className="text-sm"
-                      />
+                      {/* PDF chat response formatting */}
+                      {message.role === 'assistant' && isPDFChatResponse(message.content) ? (
+                        (() => {
+                          const parsed = JSON.parse(message.content)
+                          return (
+                            <div>
+                              <MarkdownRenderer content={parsed.response} className="text-sm mb-4" />
+                              <div className="mt-4 p-3 rounded bg-gray-900 border border-accent/40 text-xs text-gray-300">
+                                <div className="font-semibold text-accent mb-1">Context used for this answer:</div>
+                                <ul className="list-disc pl-5 space-y-1">
+                                  {parsed.context.map((ctx: string, i: number) => (
+                                    <li key={i} className="break-words whitespace-pre-line">{ctx}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            </div>
+                          )
+                        })()
+                      ) : (
+                        <MarkdownRenderer 
+                          content={message.content}
+                          className="text-sm"
+                        />
+                      )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
                       {message.timestamp.toLocaleTimeString()}
