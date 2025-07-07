@@ -101,8 +101,12 @@ async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundT
 
 vector_db_store = {}
 
+class IndexRequest(BaseModel):
+    file_id: str
+
 @app.post("/api/index_pdf")
-async def index_pdf(file_id: str):
+async def index_pdf(request: IndexRequest):
+    file_id = request.file_id
     # Find the file path in the upload dir
     file_path = None
     for fname in os.listdir(UPLOAD_DIR):
