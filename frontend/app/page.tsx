@@ -21,6 +21,10 @@ export default function ChatInterface() {
   const [isLoading, setIsLoading] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [pdfFile, setPdfFile] = useState<File | null>(null)
+  const [pdfStatus, setPdfStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'indexing' | 'indexed' | 'error'>("idle")
+  const [pdfError, setPdfError] = useState<string | null>(null)
+  const [fileId, setFileId] = useState<string | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -30,9 +34,40 @@ export default function ChatInterface() {
     scrollToBottom()
   }, [messages])
 
+  const handlePdfUpload = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!pdfFile) return
+    setPdfStatus('uploading')
+    setPdfError(null)
+    try {
+      const formData = new FormData()
+      formData.append('file', pdfFile)
+      const uploadRes = await fetch('/api/upload_pdf', {
+        method: 'POST',
+        body: formData,
+      })
+      if (!uploadRes.ok) throw new Error('Failed to upload PDF')
+      const uploadData = await uploadRes.json()
+      setFileId(uploadData.file_id)
+      setPdfStatus('uploaded')
+      setPdfStatus('indexing')
+      const indexRes = await fetch('/api/index_pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_id: uploadData.file_id }),
+      })
+      if (!indexRes.ok) throw new Error('Failed to index PDF')
+      setPdfStatus('indexed')
+    } catch (err: any) {
+      setPdfError(err.message || 'Unknown error')
+      setPdfStatus('error')
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userMessage.trim() || !apiKey.trim()) return
+    if (!userMessage.trim() || (pdfStatus === 'indexed' && !fileId)) return
+    if (!apiKey.trim()) return
 
     const newUserMessage: Message = {
       id: Date.now().toString(),
@@ -46,18 +81,25 @@ export default function ChatInterface() {
     setIsLoading(true)
 
     try {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          developer_message: developerMessage,
-          user_message: userMessage,
-          model: model,
-          api_key: apiKey
-        }),
-      })
+      let response
+      if (pdfStatus === 'indexed' && fileId) {
+        response = await fetch('/api/chat_pdf', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: fileId, user_query: userMessage }),
+        })
+      } else {
+        response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            developer_message: developerMessage,
+            user_message: userMessage,
+            model: model,
+            api_key: apiKey
+          }),
+        })
+      }
 
       if (!response.ok) {
         throw new Error('Failed to get response')
@@ -104,6 +146,27 @@ export default function ChatInterface() {
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
+      {/* PDF Upload UI */}
+      <div className="max-w-6xl mx-auto p-4">
+        <form onSubmit={handlePdfUpload} className="flex items-center space-x-4">
+          <input
+            type="file"
+            accept="application/pdf"
+            onChange={e => setPdfFile(e.target.files?.[0] || null)}
+            className="p-2 rounded bg-gray-800 border border-gray-600 text-white"
+            disabled={pdfStatus === 'uploading' || pdfStatus === 'indexing'}
+          />
+          <button
+            type="submit"
+            className="px-4 py-2 bg-primary text-white rounded disabled:opacity-50"
+            disabled={!pdfFile || pdfStatus === 'uploading' || pdfStatus === 'indexing'}
+          >
+            {pdfStatus === 'uploading' ? 'Uploading...' : pdfStatus === 'indexing' ? 'Indexing...' : 'Upload & Index PDF'}
+          </button>
+          {pdfStatus === 'indexed' && <span className="text-green-400 ml-2">PDF Ready!</span>}
+          {pdfStatus === 'error' && <span className="text-red-400 ml-2">{pdfError}</span>}
+        </form>
+      </div>
       {/* Header */}
       <motion.header 
         initial={{ y: -50, opacity: 0 }}
@@ -278,13 +341,13 @@ export default function ChatInterface() {
                   value={userMessage}
                   onChange={(e) => setUserMessage(e.target.value)}
                   placeholder="Type your message..."
-                  disabled={isLoading}
+                  disabled={isLoading || (pdfStatus === 'indexed' && !fileId)}
                   className="w-full p-4 rounded-xl bg-gray-800 border border-gray-600 text-white placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 disabled:opacity-50"
                 />
               </div>
               <motion.button
                 type="submit"
-                disabled={isLoading || !userMessage.trim() || !apiKey.trim()}
+                disabled={isLoading || !userMessage.trim() || !apiKey.trim() || (pdfStatus === 'indexed' && !fileId)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="px-6 py-4 bg-gradient-to-r from-primary to-orange-500 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/25 transition-all duration-200 flex items-center space-x-2"
