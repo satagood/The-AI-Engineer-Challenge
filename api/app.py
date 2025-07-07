@@ -12,6 +12,7 @@ import shutil
 import uuid
 from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
 from aimakerspace.vectordatabase import VectorDatabase
+from aimakerspace.openai_utils.chatmodel import ChatOpenAI
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="OpenAI Chat API")
@@ -109,6 +110,26 @@ async def index_pdf(file_id: str):
         return {"status": "indexed", "num_chunks": len(chunks)}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to index PDF: {str(e)}")
+
+@app.post("/api/chat_pdf")
+async def chat_pdf(file_id: str, user_query: str, k: int = 3):
+    if file_id not in vector_db_store:
+        raise HTTPException(status_code=404, detail="Indexed PDF not found. Please index the PDF first.")
+    try:
+        vector_db = vector_db_store[file_id]
+        # Get top-k relevant chunks
+        relevant_chunks = vector_db.search_by_text(user_query, k=k, return_as_text=True)
+        context = "\n".join(relevant_chunks)
+        # Use aimakerspace's ChatOpenAI to generate a response
+        chat = ChatOpenAI()
+        messages = [
+            {"role": "system", "content": "You are a helpful assistant. Use the following PDF context to answer the user's question."},
+            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
+        ]
+        response = chat.run(messages, text_only=True)
+        return {"response": response, "context": relevant_chunks}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to chat with PDF: {str(e)}")
 
 # Entry point for running the application directly
 if __name__ == "__main__":
