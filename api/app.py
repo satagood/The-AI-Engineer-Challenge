@@ -72,7 +72,7 @@ async def chat(request: ChatRequest):
 async def health_check():
     return {"status": "ok"}
 
-UPLOAD_DIR = "./tmp_uploads"
+UPLOAD_DIR = "/tmp/tmp_uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
 def cleanup_file(path: str, delay: int = 600):
