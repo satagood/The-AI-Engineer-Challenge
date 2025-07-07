@@ -4,15 +4,7 @@
       { "src": "frontend/package.json", "use": "@vercel/next" },
       { 
         "src": "api/app.py",
-        "use": "@vercel/python",
-        "config": {
-          "ignore": [
-            ".next",
-            "frontend",
-            "tmp_uploads",
-            ".git"
-          ]
-        }
+        "use": "@vercel/python"
       }
     ],
     "routes": [
