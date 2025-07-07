@@ -1,0 +1,6 @@
+.next
+frontend
+tmp_uploads
+.git
+*.ipynb
+*.md 
