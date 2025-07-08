@@ -3,10 +3,10 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'AI Engineer Challenge - Premium Chat Interface',
+  title: 'PDF + Markdown RAG - Premium Chat Interface',
   description: 'A premium high-end chat interface powered by OpenAI',
   keywords: ['AI', 'Chat', 'OpenAI', 'Premium', 'Interface'],
-  authors: [{ name: 'AI Engineer Challenge' }],
+  authors: [{ name: 'PDF + Markdown RAG' }],
   viewport: 'width=device-width, initial-scale=1',
 }
 

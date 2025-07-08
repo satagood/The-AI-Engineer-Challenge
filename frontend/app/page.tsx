@@ -336,7 +336,7 @@ export default function ChatInterface() {
               </div>
             </div>
             <div>
-              <h1 className="text-2xl font-bold neon-text text-primary">AI Engineer Challenge</h1>
+              <h1 className="text-2xl font-bold neon-text text-primary">PDF + Markdown RAG</h1>
               <p className="text-sm text-gray-400">Premium Chat Interface</p>
             </div>
           </div>
@@ -415,7 +415,7 @@ export default function ChatInterface() {
                   <div className="inline-flex items-center justify-center w-16 h-16 rounded-full glass-effect mb-4 animate-float">
                     <MessageCircle className="w-8 h-8 text-primary" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-300 mb-2">Welcome to AI Engineer Challenge</h3>
+                  <h3 className="text-xl font-semibold text-gray-300 mb-2">Welcome to PDF + Markdown RAG</h3>
                   <p className="text-gray-400 max-w-md mx-auto">
                     Start a conversation with our premium AI assistant. Configure your settings above and begin chatting!
                   </p>
