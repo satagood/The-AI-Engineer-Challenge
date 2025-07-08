@@ -107,7 +107,7 @@ function HybridProgressBar({ progress, label }: { progress: number | null, label
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [userMessage, setUserMessage] = useState('')
-  const [developerMessage, setDeveloperMessage] = useState('You are a helpful AI assistant. Respond in a friendly and professional manner.')
+  const [developerMessage, setDeveloperMessage] = useState('You are a helpful assistant. Use the following PDF context to answer the user\'s question.')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('gpt-4.1-mini')
   const [isLoading, setIsLoading] = useState(false)
@@ -191,7 +191,7 @@ export default function ChatInterface() {
         response = await fetch('/api/chat_pdf', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_id: fileId, user_query: userMessage, api_key: apiKey }),
+          body: JSON.stringify({ file_id: fileId, user_query: userMessage, api_key: apiKey, developer_message: developerMessage }),
         })
       } else {
         response = await fetch('/api/chat', {

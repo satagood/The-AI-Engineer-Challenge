@@ -143,12 +143,14 @@ class ChatPDFRequest(BaseModel):
     file_id: str
     user_query: str
     api_key: str
+    developer_message: str
 
 @app.post("/api/chat_pdf")
 async def chat_pdf(request: ChatPDFRequest, k: int = 3):
     file_id = request.file_id
     user_query = request.user_query
     api_key = request.api_key
+    developer_message = request.developer_message
     if file_id not in vector_db_store:
         raise HTTPException(status_code=404, detail="Indexed PDF not found. Please index the PDF first.")
     try:
@@ -161,7 +163,7 @@ async def chat_pdf(request: ChatPDFRequest, k: int = 3):
         # Use aimakerspace's ChatOpenAI to generate a response
         chat = ChatOpenAI(api_key=api_key)
         messages = [
-            {"role": "system", "content": "You are a helpful assistant. Use the following PDF context to answer the user's question."},
+            {"role": "system", "content": developer_message},
             {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
         ]
         response = chat.run(messages, text_only=True)
