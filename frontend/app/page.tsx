@@ -48,6 +48,25 @@ function ContextToggle({ context }: { context: string[] }) {
   );
 }
 
+// Indeterminate progress bar component
+function IndeterminateProgressBar() {
+  return (
+    <div className="w-full h-2 bg-gray-800 rounded overflow-hidden mt-2">
+      <div className="h-full bg-primary animate-indeterminate" style={{ minWidth: '30%' }}></div>
+      <style jsx>{`
+        @keyframes indeterminate {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-indeterminate {
+          animation: indeterminate 1.2s infinite linear;
+          width: 40%;
+        }
+      `}</style>
+    </div>
+  );
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [userMessage, setUserMessage] = useState('')
@@ -202,6 +221,7 @@ export default function ChatInterface() {
           {pdfStatus === 'indexed' && <span className="text-green-400 ml-2">PDF Ready!</span>}
           {pdfStatus === 'error' && <span className="text-red-400 ml-2">{pdfError}</span>}
         </form>
+        {pdfStatus === 'indexing' && <IndeterminateProgressBar />}
       </div>
       {/* Header */}
       <motion.header 
