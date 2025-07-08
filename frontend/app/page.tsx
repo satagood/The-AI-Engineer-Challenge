@@ -16,14 +16,14 @@ interface Message {
 function isPDFChatResponse(content: string) {
   try {
     const parsed = JSON.parse(content)
-    return parsed && typeof parsed.response === 'string' && Array.isArray(parsed.context)
+    return parsed && typeof parsed.response === 'string' && parsed.context && (Array.isArray(parsed.context.pdf) || Array.isArray(parsed.context.md))
   } catch {
     return false
   }
 }
 
 // Elegant context toggle component
-function ContextToggle({ context }: { context: string[] }) {
+function ContextToggle({ context }: { context: { pdf?: string[]; md?: string[] } }) {
   const [show, setShow] = useState(false);
   return (
     <div className="my-4">
@@ -38,10 +38,23 @@ function ContextToggle({ context }: { context: string[] }) {
       <div
         id="context-section"
         className={`overflow-hidden transition-all duration-300 ease-in-out ${show ? 'max-h-96 opacity-100 mt-3' : 'max-h-0 opacity-0 mt-0'} bg-gray-900 rounded text-sm text-gray-200 border border-gray-700`}
-        style={{ padding: show ? '1rem' : '0' }}
+        style={{ padding: show ? '1rem' : '0', maxHeight: show ? '24rem' : '0', overflowY: show ? 'auto' : 'hidden' }}
       >
         {show && (
-          <pre className="whitespace-pre-wrap font-mono text-xs">{context.join('\n\n')}</pre>
+          <>
+            {context.pdf && context.pdf.length > 0 && (
+              <>
+                <h4 className="font-bold mb-1">PDF Context</h4>
+                <pre className="whitespace-pre-wrap font-mono text-xs">{context.pdf.join('\n\n')}</pre>
+              </>
+            )}
+            {context.md && context.md.length > 0 && (
+              <>
+                <h4 className="font-bold mt-2 mb-1">Markdown Context</h4>
+                <pre className="whitespace-pre-wrap font-mono text-xs">{context.md.join('\n\n')}</pre>
+              </>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -107,7 +120,8 @@ function HybridProgressBar({ progress, label }: { progress: number | null, label
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [userMessage, setUserMessage] = useState('')
-  const [developerMessage, setDeveloperMessage] = useState('You are a helpful assistant. Use the following PDF context to answer the user\'s question.')
+  // 1. Update default system prompt
+  const [developerMessage, setDeveloperMessage] = useState('You are a helpful assistant. Use the “Knowledge (from PDF)” as your knowledge base, and “Idea (from Markdown)” as the idea to critique. Critique the idea using the knowledge, and provide actionable, thoughtful feedback.')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('gpt-4.1-mini')
   const [isLoading, setIsLoading] = useState(false)
@@ -116,9 +130,13 @@ export default function ChatInterface() {
   const [pdfFile, setPdfFile] = useState<File | null>(null)
   const [pdfStatus, setPdfStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'indexing' | 'indexed' | 'error'>("idle")
   const [pdfError, setPdfError] = useState<string | null>(null)
-  const [fileId, setFileId] = useState<string | null>(null)
+  const [pdfFileId, setPdfFileId] = useState<string | null>(null)
+  const [mdFileId, setMdFileId] = useState<string | null>(null)
+  const [mdStatus, setMdStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'indexing' | 'indexed' | 'error'>('idle')
   // Add state for chunking progress
   const [chunkProgress, setChunkProgress] = useState<{ current: number, total: number } | null>(null)
+  // Add state for context visibility
+  const [showContext, setShowContext] = useState(false)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -128,34 +146,56 @@ export default function ChatInterface() {
     scrollToBottom()
   }, [messages])
 
-  const handlePdfUpload = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!pdfFile) return
+  // PDF upload handler
+  const handlePdfUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
     setPdfStatus('uploading')
-    setPdfError(null)
+    const formData = new FormData()
+    formData.append('file', file)
     try {
-      const formData = new FormData()
-      formData.append('file', pdfFile)
-      const uploadRes = await fetch('/api/upload_pdf', {
-        method: 'POST',
-        body: formData,
-      })
-      if (!uploadRes.ok) throw new Error('Failed to upload PDF')
-      const uploadData = await uploadRes.json()
-      setFileId(uploadData.file_id)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.ext !== '.pdf') throw new Error('Not a PDF')
+      setPdfFileId(data.file_id)
       setPdfStatus('uploaded')
+      // Index
       setPdfStatus('indexing')
-      await simulateChunking(120) // or the real chunk count if available
-      const indexRes = await fetch('/api/index_pdf', {
+      const indexRes = await fetch('/api/index', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_id: uploadData.file_id, api_key: apiKey }),
+        body: JSON.stringify({ file_id: data.file_id, file_path: data.file_path, api_key: apiKey })
       })
-      if (!indexRes.ok) throw new Error('Failed to index PDF')
+      if (!indexRes.ok) throw new Error('Indexing failed')
       setPdfStatus('indexed')
-    } catch (err: any) {
-      setPdfError(err.message || 'Unknown error')
+    } catch (err) {
       setPdfStatus('error')
+    }
+  }
+  // Markdown upload handler
+  const handleMdUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setMdStatus('uploading')
+    const formData = new FormData()
+    formData.append('file', file)
+    try {
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (data.ext !== '.md') throw new Error('Not a Markdown file')
+      setMdFileId(data.file_id)
+      setMdStatus('uploaded')
+      // Index
+      setMdStatus('indexing')
+      const indexRes = await fetch('/api/index', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file_id: data.file_id, file_path: data.file_path, api_key: apiKey })
+      })
+      if (!indexRes.ok) throw new Error('Indexing failed')
+      setMdStatus('indexed')
+    } catch (err) {
+      setMdStatus('error')
     }
   }
 
@@ -169,42 +209,32 @@ export default function ChatInterface() {
     setChunkProgress(null)
   }
 
+  // In handleSubmit, use /api/chat_dual_rag if both files are indexed
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!userMessage.trim() || (pdfStatus === 'indexed' && !fileId)) return
-    if (!apiKey.trim()) return
-
+    if (!userMessage.trim() || !apiKey.trim()) return
+    if (pdfStatus !== 'indexed' || mdStatus !== 'indexed' || !pdfFileId || !mdFileId) return
+    setIsLoading(true)
+    setUserMessage('')
     const newUserMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
       content: userMessage,
       timestamp: new Date()
     }
-
     setMessages(prev => [...prev, newUserMessage])
-    setUserMessage('')
-    setIsLoading(true)
-
     try {
-      let response
-      if (pdfStatus === 'indexed' && fileId) {
-        response = await fetch('/api/chat_pdf', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_id: fileId, user_query: userMessage, api_key: apiKey, developer_message: developerMessage }),
+      const response = await fetch('/api/chat_dual_rag', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdf_file_id: pdfFileId,
+          md_file_id: mdFileId,
+          user_query: userMessage,
+          api_key: apiKey,
+          developer_message: developerMessage
         })
-      } else {
-        response = await fetch('/api/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            developer_message: developerMessage,
-            user_message: userMessage,
-            model: model,
-            api_key: apiKey
-          }),
-        })
-      }
+      })
 
       if (!response.ok) {
         throw new Error('Failed to get response')
@@ -257,7 +287,7 @@ export default function ChatInterface() {
           <input
             type="file"
             accept="application/pdf"
-            onChange={e => setPdfFile(e.target.files?.[0] || null)}
+            onChange={handlePdfUpload}
             className="p-2 rounded bg-gray-800 border border-gray-600 text-white"
             disabled={pdfStatus === 'uploading' || pdfStatus === 'indexing'}
           />
@@ -276,6 +306,26 @@ export default function ChatInterface() {
             ? <HybridProgressBar progress={chunkProgress.current / chunkProgress.total} label={`Chunking PDF: ${chunkProgress.current} / ${chunkProgress.total}`} />
             : <HybridProgressBar progress={null} label="Embedding chunks..." />
         )}
+      </div>
+      {/* Markdown Upload UI: match PDF upload UI, but no <form> wrapper */}
+      <div className="max-w-6xl mx-auto p-4 flex items-center space-x-4">
+        <input
+          type="file"
+          accept=".md"
+          onChange={handleMdUpload}
+          className="p-2 rounded bg-gray-800 border border-gray-600 text-white"
+          disabled={mdStatus === 'uploading' || mdStatus === 'indexing'}
+        />
+        <button
+          type="button"
+          className="px-4 py-2 bg-primary text-white rounded disabled:opacity-50"
+          disabled={mdStatus === 'uploading' || mdStatus === 'indexing'}
+          onClick={() => {}}
+        >
+          {mdStatus === 'uploading' ? 'Uploading...' : mdStatus === 'indexing' ? 'Indexing...' : 'Upload & Index Markdown'}
+        </button>
+        {mdStatus === 'indexed' && <span className="text-green-400 ml-2">Markdown Ready!</span>}
+        {mdStatus === 'error' && <span className="text-red-400 ml-2">Error</span>}
       </div>
       {/* Header */}
       <motion.header 
@@ -464,13 +514,13 @@ export default function ChatInterface() {
                   value={userMessage}
                   onChange={(e) => setUserMessage(e.target.value)}
                   placeholder="Type your message..."
-                  disabled={isLoading || (pdfStatus === 'indexed' && !fileId)}
+                  disabled={isLoading || (pdfStatus !== 'indexed' || mdStatus !== 'indexed' || !pdfFileId || !mdFileId)}
                   className="w-full p-4 rounded-xl bg-gray-800 border border-gray-600 text-white placeholder-gray-400 focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all duration-200 disabled:opacity-50"
                 />
               </div>
               <motion.button
                 type="submit"
-                disabled={isLoading || !userMessage.trim() || !apiKey.trim() || (pdfStatus === 'indexed' && !fileId)}
+                disabled={isLoading || !userMessage.trim() || !apiKey.trim() || (pdfStatus !== 'indexed' || mdStatus !== 'indexed' || !pdfFileId || !mdFileId)}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 className="px-6 py-4 bg-gradient-to-r from-primary to-orange-500 text-white rounded-xl font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:shadow-lg hover:shadow-primary/25 transition-all duration-200 flex items-center space-x-2"
