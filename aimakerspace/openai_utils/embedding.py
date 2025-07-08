@@ -56,9 +56,9 @@ class EmbeddingModel:
         if batch:
             print(f"[DEBUG] Sending final batch of {len(batch)} chunks, {batch_tokens} tokens (limit: {max_tokens_per_batch})")
         embedding_response = await self.async_client.embeddings.create(
-                input=batch, model=self.embeddings_model_name
+            input=batch, model=self.embeddings_model_name
         )
-            all_embeddings.extend([embeddings.embedding for embeddings in embedding_response.data])
+        all_embeddings.extend([embeddings.embedding for embeddings in embedding_response.data])
         return all_embeddings
 
     async def async_get_embedding(self, text: str) -> List[float]:
