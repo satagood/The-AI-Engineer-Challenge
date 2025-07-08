@@ -93,11 +93,11 @@ class PDFLoader:
 
     def load_file(self):
         try:
-        with open(self.path, 'rb') as file:
-            # Create PDF reader object
-            pdf_reader = PyPDF2.PdfReader(file)
+            with open(self.path, 'rb') as file:
+                # Create PDF reader object
+                pdf_reader = PyPDF2.PdfReader(file)
                 # Extract text from all pages
-            text = ""
+                text = ""
                 for i, page in enumerate(pdf_reader.pages):
                     try:
                         page_text = page.extract_text()
@@ -107,7 +107,7 @@ class PDFLoader:
                             print(f"Warning: No text extracted from page {i} in {self.path}")
                     except Exception as page_err:
                         print(f"Error extracting text from page {i} in {self.path}: {page_err}")
-            self.documents.append(text)
+                self.documents.append(text)
         except Exception as e:
             print(f"Error loading PDF file {self.path}: {e}")
             raise
