@@ -463,10 +463,10 @@ export default function ChatInterface() {
                           )
                         })()
                       ) : (
-                        <MarkdownRenderer 
-                          content={message.content}
-                          className="text-sm"
-                        />
+                      <MarkdownRenderer 
+                        content={message.content}
+                        className="text-sm"
+                      />
                       )}
                     </div>
                     <p className="text-xs text-gray-500 mt-1">
