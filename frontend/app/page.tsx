@@ -283,29 +283,23 @@ export default function ChatInterface() {
     <div className="min-h-screen bg-background flex flex-col">
       {/* PDF Upload UI */}
       <div className="max-w-6xl mx-auto p-4">
-        <form onSubmit={handlePdfUpload} className="flex items-center space-x-4">
-          <input
-            type="file"
-            accept="application/pdf"
-            onChange={handlePdfUpload}
-            className="p-2 rounded bg-gray-800 border border-gray-600 text-white"
-            disabled={pdfStatus === 'uploading' || pdfStatus === 'indexing'}
-          />
-          <button
-            type="submit"
-            className="px-4 py-2 bg-primary text-white rounded disabled:opacity-50"
-            disabled={!pdfFile || pdfStatus === 'uploading' || pdfStatus === 'indexing'}
-          >
-            {pdfStatus === 'uploading' ? 'Uploading...' : pdfStatus === 'indexing' ? 'Indexing...' : 'Upload & Index PDF'}
-          </button>
-          {pdfStatus === 'indexed' && <span className="text-green-400 ml-2">PDF Ready!</span>}
-          {pdfStatus === 'error' && <span className="text-red-400 ml-2">{pdfError}</span>}
-        </form>
-        {pdfStatus === 'indexing' && (
-          chunkProgress
-            ? <HybridProgressBar progress={chunkProgress.current / chunkProgress.total} label={`Chunking PDF: ${chunkProgress.current} / ${chunkProgress.total}`} />
-            : <HybridProgressBar progress={null} label="Embedding chunks..." />
-        )}
+        <input
+          type="file"
+          accept="application/pdf"
+          onChange={handlePdfUpload}
+          className="p-2 rounded bg-gray-800 border border-gray-600 text-white"
+          disabled={pdfStatus === 'uploading' || pdfStatus === 'indexing'}
+        />
+        <button
+          type="button"
+          className="px-4 py-2 bg-primary text-white rounded disabled:opacity-50"
+          disabled={pdfStatus === 'uploading' || pdfStatus === 'indexing'}
+          onClick={() => {}}
+        >
+          {pdfStatus === 'uploading' ? 'Uploading...' : pdfStatus === 'indexing' ? 'Indexing...' : 'Upload & Index PDF'}
+        </button>
+        {pdfStatus === 'indexed' && <span className="text-green-400 ml-2">PDF Ready!</span>}
+        {pdfStatus === 'error' && <span className="text-red-400 ml-2">{pdfError}</span>}
       </div>
       {/* Markdown Upload UI: match PDF upload UI, but no <form> wrapper */}
       <div className="max-w-6xl mx-auto p-4 flex items-center space-x-4">
