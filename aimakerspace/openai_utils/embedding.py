@@ -13,7 +13,7 @@ class EmbeddingModel:
         if api_key is not None:
             self.openai_api_key = api_key
         else:
-        self.openai_api_key = os.getenv("OPENAI_API_KEY")
+            self.openai_api_key = os.getenv("OPENAI_API_KEY")
         if self.openai_api_key is None:
             raise ValueError(
                 "OPENAI_API_KEY environment variable is not set and no api_key was provided. Please set it to your OpenAI API key."
