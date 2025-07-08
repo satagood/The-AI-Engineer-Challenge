@@ -10,10 +10,11 @@ import os
 from typing import Optional
 import shutil
 import uuid
-from aimakerspace.text_utils import PDFLoader, CharacterTextSplitter
+from aimakerspace.text_utils import PDFLoader, MarkdownLoader, CharacterTextSplitter
 from aimakerspace.vectordatabase import VectorDatabase
 from aimakerspace.openai_utils.chatmodel import ChatOpenAI
 import time
+from aimakerspace.vectordatabase import EmbeddingModel
 
 # Initialize FastAPI application with a title
 app = FastAPI(title="OpenAI Chat API")
@@ -83,61 +84,53 @@ def cleanup_file(path: str, delay: int = 600):
     except Exception as e:
         print(f"Failed to cleanup file {path}: {e}")
 
-@app.post("/api/upload_pdf")
-async def upload_pdf(file: UploadFile = File(...), background_tasks: BackgroundTasks = None):
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are allowed.")
-    try:
-        unique_id = str(uuid.uuid4())
-        file_path = os.path.join(UPLOAD_DIR, f"{unique_id}_{file.filename}")
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        # Schedule cleanup after 10 minutes
-        if background_tasks:
-            background_tasks.add_task(cleanup_file, file_path)
-        return {"file_id": unique_id, "file_path": file_path}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload PDF: {str(e)}")
+@app.post("/api/upload")
+async def upload_file(file: UploadFile = File(...)):
+    # Accept PDF or Markdown
+    ext = os.path.splitext(file.filename)[1].lower()
+    if ext not in [".pdf", ".md"]:
+        raise HTTPException(status_code=400, detail="Only PDF and Markdown (.md) files are supported.")
+    tmp_dir = "/tmp/tmp_uploads"
+    os.makedirs(tmp_dir, exist_ok=True)
+    file_id = str(uuid.uuid4())
+    file_path = os.path.join(tmp_dir, f"{file_id}_{file.filename}")
+    with open(file_path, "wb") as f:
+        f.write(await file.read())
+    return {"file_id": file_id, "file_path": file_path, "ext": ext}
 
-vector_db_store = {}
+# In-memory stores for vector DBs
+vector_db_store_pdf = {}
+vector_db_store_md = {}
 
 class IndexRequest(BaseModel):
     file_id: str
+    file_path: str
     api_key: str
 
-@app.post("/api/index_pdf")
-async def index_pdf(request: IndexRequest):
-    file_id = request.file_id
-    api_key = request.api_key
-    # Find the file path in the upload dir
-    file_path = None
-    for fname in os.listdir(UPLOAD_DIR):
-        if fname.startswith(file_id):
-            file_path = os.path.join(UPLOAD_DIR, fname)
-            break
-    if not file_path or not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found for indexing.")
-    try:
-        loader = PDFLoader(file_path)
-        documents = loader.load_documents()  # List of text from PDF
-        splitter = CharacterTextSplitter()
-        chunks = splitter.split_texts(documents)
-        print(f"[DEBUG] Extracted {len(chunks)} chunks from PDF {file_path}")
-        try:
-            import openai
-            openai.api_key = api_key
-            from aimakerspace.openai_utils.embedding import EmbeddingModel
-            embedding_model = EmbeddingModel(embeddings_model_name="text-embedding-3-small", api_key=api_key)
-            vector_db = await VectorDatabase(embedding_model=embedding_model).abuild_from_list(chunks)
-        except Exception as embed_err:
-            print(f"[ERROR] Failed to embed chunks: {embed_err}")
-            raise
-        vector_db_store[file_id] = vector_db
-        print(f"[DEBUG] Successfully indexed PDF {file_path}")
-        return {"status": "indexed", "num_chunks": len(chunks)}
-    except Exception as e:
-        print(f"[ERROR] Exception in /api/index_pdf: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to index PDF: {str(e)}")
+@app.post("/api/index")
+async def index_file(request: IndexRequest):
+    # Accept PDF or Markdown
+    ext = os.path.splitext(request.file_path)[1].lower()
+    if ext == ".pdf":
+        loader = PDFLoader(request.file_path)
+    elif ext == ".md":
+        loader = MarkdownLoader(request.file_path)
+    else:
+        raise HTTPException(status_code=400, detail="Only PDF and Markdown (.md) files are supported.")
+    documents = loader.load_documents()
+    splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    chunks = splitter.split_texts(documents)
+    # Use separate vector DB stores
+    embedding_model = EmbeddingModel(api_key=request.api_key)
+    if ext == ".pdf":
+        vector_db = VectorDatabase(embedding_model=embedding_model)
+        await vector_db.abuild_from_list(chunks)
+        vector_db_store_pdf[request.file_id] = vector_db
+    elif ext == ".md":
+        vector_db = VectorDatabase(embedding_model=embedding_model)
+        await vector_db.abuild_from_list(chunks)
+        vector_db_store_md[request.file_id] = vector_db
+    return {"status": "indexed", "file_id": request.file_id, "ext": ext}
 
 class ChatPDFRequest(BaseModel):
     file_id: str
@@ -151,26 +144,65 @@ async def chat_pdf(request: ChatPDFRequest, k: int = 3):
     user_query = request.user_query
     api_key = request.api_key
     developer_message = request.developer_message
-    if file_id not in vector_db_store:
+    if file_id not in vector_db_store_pdf and file_id not in vector_db_store_md:
         raise HTTPException(status_code=404, detail="Indexed PDF not found. Please index the PDF first.")
+    
+    vector_db = None
+    if file_id in vector_db_store_pdf:
+        vector_db = vector_db_store_pdf[file_id]
+    elif file_id in vector_db_store_md:
+        vector_db = vector_db_store_md[file_id]
+
+    # Get top-k relevant chunks
+    relevant_chunks = vector_db.search_by_text(user_query, k=k, return_as_text=True)
+    context = "\n".join(relevant_chunks)
+    # Use aimakerspace's ChatOpenAI to generate a response
+    chat = ChatOpenAI(api_key=api_key)
+    messages = [
+        {"role": "system", "content": developer_message},
+        {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
+    ]
+    response = chat.run(messages, text_only=True)
+    return {"response": response, "context": relevant_chunks}
+
+class ChatDualRAGRequest(BaseModel):
+    pdf_file_id: str
+    md_file_id: str
+    user_query: str
+    api_key: str
+    developer_message: str
+
+@app.post("/api/chat_dual_rag")
+async def chat_dual_rag(request: ChatDualRAGRequest, k: int = 3):
+    pdf_file_id = request.pdf_file_id
+    md_file_id = request.md_file_id
+    user_query = request.user_query
+    api_key = request.api_key
+    developer_message = request.developer_message
+    if pdf_file_id not in vector_db_store_pdf:
+        raise HTTPException(status_code=404, detail="Indexed PDF not found. Please index the PDF first.")
+    if md_file_id not in vector_db_store_md:
+        raise HTTPException(status_code=404, detail="Indexed Markdown not found. Please index the Markdown file first.")
     try:
         import openai
         openai.api_key = api_key
-        vector_db = vector_db_store[file_id]
-        # Get top-k relevant chunks
-        relevant_chunks = vector_db.search_by_text(user_query, k=k, return_as_text=True)
-        context = "\n".join(relevant_chunks)
-        # Use aimakerspace's ChatOpenAI to generate a response
+        pdf_vector_db = vector_db_store_pdf[pdf_file_id]
+        md_vector_db = vector_db_store_md[md_file_id]
+        # Get top-k relevant chunks from both
+        pdf_chunks = pdf_vector_db.search_by_text(user_query, k=k, return_as_text=True)
+        md_chunks = md_vector_db.search_by_text(user_query, k=k, return_as_text=True)
+        context = f"Knowledge (from PDF):\n{chr(10).join(pdf_chunks)}\n\nIdea (from Markdown):\n{chr(10).join(md_chunks)}"
+        # Prompt: critique the idea using the knowledge
         chat = ChatOpenAI(api_key=api_key)
         messages = [
             {"role": "system", "content": developer_message},
-            {"role": "user", "content": f"Context:\n{context}\n\nQuestion: {user_query}"}
+            {"role": "user", "content": f"Use the following knowledge to critique the idea.\n\n{context}\n\nQuestion: {user_query}"}
         ]
         response = chat.run(messages, text_only=True)
-        return {"response": response, "context": relevant_chunks}
+        return {"response": response, "context": {"pdf": pdf_chunks, "md": md_chunks}}
     except Exception as e:
-        print(f"[ERROR] Exception in /api/chat_pdf: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to chat with PDF: {str(e)}")
+        print(f"[ERROR] Exception in /api/chat_dual_rag: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to chat with dual RAG: {str(e)}")
 
 # Entry point for running the application directly
 if __name__ == "__main__":

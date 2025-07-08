@@ -16,6 +16,8 @@ numpy
 # Token counting for batching
  tiktoken
 
+markdown
+beautifulsoup4
 
 # Optional but recommended for development 🛠️
 python-multipart  # For file uploads if you add them later

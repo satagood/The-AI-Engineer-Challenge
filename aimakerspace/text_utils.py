@@ -1,6 +1,8 @@
 import os
 from typing import List
 import PyPDF2
+import markdown
+from bs4 import BeautifulSoup
 
 
 class TextFileLoader:
@@ -132,6 +134,38 @@ class PDFLoader:
         except Exception as e:
             print(f"Error in load_documents for {self.path}: {e}")
             raise
+
+
+class MarkdownLoader:
+    def __init__(self, path: str, encoding: str = "utf-8"):
+        self.documents = []
+        self.path = path
+        self.encoding = encoding
+        print(f"MarkdownLoader initialized with path: {self.path}")
+
+    def load(self):
+        print(f"Loading Markdown from path: {self.path}")
+        if not os.path.isfile(self.path) or not self.path.endswith(".md"):
+            raise ValueError("Provided path is not a valid .md file.")
+        self.load_file()
+
+    def load_file(self):
+        try:
+            with open(self.path, "r", encoding=self.encoding) as f:
+                text = f.read()
+                # Optionally, strip markdown formatting to plain text
+                html = markdown.markdown(text)
+                # Remove HTML tags to get plain text
+                soup = BeautifulSoup(html, "html.parser")
+                plain_text = soup.get_text()
+                self.documents.append(plain_text)
+        except Exception as e:
+            print(f"Error loading Markdown file {self.path}: {e}")
+            raise
+
+    def load_documents(self):
+        self.load()
+        return self.documents
 
 
 if __name__ == "__main__":
