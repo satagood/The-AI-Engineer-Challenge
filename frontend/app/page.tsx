@@ -67,6 +67,43 @@ function IndeterminateProgressBar() {
   );
 }
 
+// Hybrid progress bar component
+function HybridProgressBar({ progress, label }: { progress: number | null, label: string }) {
+  if (progress === null) {
+    // Indeterminate bar (embedding phase)
+    return (
+      <div className="w-full mt-2">
+        <div className="text-xs text-gray-400 mb-1">{label}</div>
+        <div className="w-full h-2 bg-gray-800 rounded overflow-hidden">
+          <div className="h-full bg-primary animate-indeterminate" style={{ minWidth: '30%' }}></div>
+        </div>
+        <style jsx>{`
+          @keyframes indeterminate {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(100%); }
+          }
+          .animate-indeterminate {
+            animation: indeterminate 1.2s infinite linear;
+            width: 40%;
+          }
+        `}</style>
+      </div>
+    );
+  }
+  // Determinate bar (chunking phase)
+  return (
+    <div className="w-full mt-2">
+      <div className="text-xs text-gray-400 mb-1">{label}</div>
+      <div className="w-full h-2 bg-gray-800 rounded overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all duration-300"
+          style={{ width: `${Math.round(progress * 100)}%` }}
+        ></div>
+      </div>
+    </div>
+  );
+}
+
 export default function ChatInterface() {
   const [messages, setMessages] = useState<Message[]>([])
   const [userMessage, setUserMessage] = useState('')
@@ -80,6 +117,8 @@ export default function ChatInterface() {
   const [pdfStatus, setPdfStatus] = useState<'idle' | 'uploading' | 'uploaded' | 'indexing' | 'indexed' | 'error'>("idle")
   const [pdfError, setPdfError] = useState<string | null>(null)
   const [fileId, setFileId] = useState<string | null>(null)
+  // Add state for chunking progress
+  const [chunkProgress, setChunkProgress] = useState<{ current: number, total: number } | null>(null)
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -106,6 +145,7 @@ export default function ChatInterface() {
       setFileId(uploadData.file_id)
       setPdfStatus('uploaded')
       setPdfStatus('indexing')
+      await simulateChunking(120) // or the real chunk count if available
       const indexRes = await fetch('/api/index_pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -117,6 +157,16 @@ export default function ChatInterface() {
       setPdfError(err.message || 'Unknown error')
       setPdfStatus('error')
     }
+  }
+
+  // Simulate chunking progress for demo (since backend is synchronous)
+  const simulateChunking = async (totalChunks: number) => {
+    setChunkProgress({ current: 0, total: totalChunks })
+    for (let i = 1; i <= totalChunks; i++) {
+      setChunkProgress({ current: i, total: totalChunks })
+      await new Promise(res => setTimeout(res, 20)) // fast animation
+    }
+    setChunkProgress(null)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -221,7 +271,11 @@ export default function ChatInterface() {
           {pdfStatus === 'indexed' && <span className="text-green-400 ml-2">PDF Ready!</span>}
           {pdfStatus === 'error' && <span className="text-red-400 ml-2">{pdfError}</span>}
         </form>
-        {pdfStatus === 'indexing' && <IndeterminateProgressBar />}
+        {pdfStatus === 'indexing' && (
+          chunkProgress
+            ? <HybridProgressBar progress={chunkProgress.current / chunkProgress.total} label={`Chunking PDF: ${chunkProgress.current} / ${chunkProgress.total}`} />
+            : <HybridProgressBar progress={null} label="Embedding chunks..." />
+        )}
       </div>
       {/* Header */}
       <motion.header 
